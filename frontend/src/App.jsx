@@ -6,6 +6,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { AuthContext } from './context/AuthContext';
 import Login from './components/Auth/Login';
 import Signup from './components/Auth/Signup';
+import ChatPage from './components/Chat/ChatPage';
 import './App.css';
 
 // Protected Route Component
@@ -19,38 +20,17 @@ const ProtectedRoute = ({ children }) => {
   return user ? children : <Navigate to="/login" />;
 };
 
-// Chat Placeholder (we'll build this tomorrow)
-const ChatPage = () => {
-  const { user, logout } = useContext(AuthContext);
-  
-  return (
-    <div style={{ padding: '40px', textAlign: 'center' }}>
-      <h1>Welcome, {user?.username}!</h1>
-      <p>Chat interface coming in Day 2...</p>
-      <button 
-        onClick={logout}
-        style={{
-          padding: '10px 20px',
-          background: '#667eea',
-          color: 'white',
-          border: 'none',
-          borderRadius: '8px',
-          cursor: 'pointer',
-          marginTop: '20px'
-        }}
-      >
-        Logout
-      </button>
-    </div>
-  );
-};
-
 function App() {
+  const { user } = useContext(AuthContext);
+
   return (
     <Router>
       <div className="App">
         <Routes>
-          <Route path="/" element={<Navigate to="/login" />} />
+          <Route 
+            path="/" 
+            element={user ? <Navigate to="/chat" /> : <Navigate to="/login" />} 
+          />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Signup />} />
           <Route 

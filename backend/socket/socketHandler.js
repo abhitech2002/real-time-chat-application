@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const Message = require('../models/Message');
+const Room = require('../models/Room');
 
 module.exports = (io) => {
   // Store online users
@@ -11,17 +12,14 @@ module.exports = (io) => {
     // User joins
     socket.on('user-online', async (userId) => {
       try {
-        // Update user's online status
         await User.findByIdAndUpdate(userId, {
           isOnline: true,
           socketId: socket.id,
           lastSeen: new Date()
         });
 
-        // Store user in online users map
         onlineUsers.set(userId, socket.id);
 
-        // Broadcast to all clients that user is online
         io.emit('user-status-change', {
           userId,
           isOnline: true
@@ -33,34 +31,61 @@ module.exports = (io) => {
       }
     });
 
-    // Send message
+    // Join room
+    socket.on('join-room', async (roomId) => {
+      socket.join(`room-${roomId}`);
+      console.log(`User joined room: ${roomId}`);
+    });
+
+    // Leave room
+    socket.on('leave-room', (roomId) => {
+      socket.leave(`room-${roomId}`);
+      console.log(`User left room: ${roomId}`);
+    });
+
+    // Send message (Direct or Group)
     socket.on('send-message', async (data) => {
       try {
-        const { senderId, receiverId, content, messageType, fileUrl } = data;
+        const { senderId, receiverId, roomId, content, messageType, fileUrl, fileName, fileSize } = data;
 
-        // Save message to database
+        // Create message
         const message = await Message.create({
           sender: senderId,
-          receiver: receiverId,
+          receiver: receiverId || null,
+          room: roomId || null,
           content,
           messageType: messageType || 'text',
-          fileUrl: fileUrl || null
+          fileUrl: fileUrl || null,
+          fileName: fileName || null,
+          fileSize: fileSize || null
         });
 
         const populatedMessage = await Message.findById(message._id)
           .populate('sender', 'username avatar')
           .populate('receiver', 'username avatar');
 
-        // Emit to receiver if online
-        const receiverSocketId = onlineUsers.get(receiverId);
-        if (receiverSocketId) {
-          io.to(receiverSocketId).emit('receive-message', populatedMessage);
+        // If it's a room message
+        if (roomId) {
+          // Update room's last message
+          await Room.findByIdAndUpdate(roomId, {
+            lastMessage: message._id,
+            lastMessageAt: new Date()
+          });
+
+          // Emit to all room members
+          io.to(`room-${roomId}`).emit('receive-message', populatedMessage);
+        } else {
+          // Direct message - emit to receiver
+          const receiverSocketId = onlineUsers.get(receiverId);
+          if (receiverSocketId) {
+            io.to(receiverSocketId).emit('receive-message', populatedMessage);
+          }
         }
 
-        // Also emit back to sender for confirmation
+        // Confirm to sender
         socket.emit('message-sent', populatedMessage);
 
-        console.log(`Message sent from ${senderId} to ${receiverId}`);
+        console.log(`Message sent from ${senderId} to ${receiverId || `room ${roomId}`}`);
       } catch (error) {
         console.error('Error sending message:', error);
         socket.emit('message-error', { message: 'Failed to send message' });
@@ -69,20 +94,55 @@ module.exports = (io) => {
 
     // Typing indicator
     socket.on('typing-start', (data) => {
-      const { senderId, receiverId } = data;
-      const receiverSocketId = onlineUsers.get(receiverId);
+      const { senderId, receiverId, roomId } = data;
       
-      if (receiverSocketId) {
-        io.to(receiverSocketId).emit('user-typing', { userId: senderId });
+      if (roomId) {
+        // Broadcast to room
+        socket.to(`room-${roomId}`).emit('user-typing', { userId: senderId, roomId });
+      } else {
+        // Send to specific user
+        const receiverSocketId = onlineUsers.get(receiverId);
+        if (receiverSocketId) {
+          io.to(receiverSocketId).emit('user-typing', { userId: senderId });
+        }
       }
     });
 
     socket.on('typing-stop', (data) => {
-      const { senderId, receiverId } = data;
-      const receiverSocketId = onlineUsers.get(receiverId);
+      const { senderId, receiverId, roomId } = data;
       
-      if (receiverSocketId) {
-        io.to(receiverSocketId).emit('user-stopped-typing', { userId: senderId });
+      if (roomId) {
+        socket.to(`room-${roomId}`).emit('user-stopped-typing', { userId: senderId, roomId });
+      } else {
+        const receiverSocketId = onlineUsers.get(receiverId);
+        if (receiverSocketId) {
+          io.to(receiverSocketId).emit('user-stopped-typing', { userId: senderId });
+        }
+      }
+    });
+
+    // Mark messages as read
+    socket.on('mark-as-read', async (data) => {
+      try {
+        const { messageIds, userId } = data;
+        
+        await Message.updateMany(
+          { _id: { $in: messageIds } },
+          {
+            isRead: true,
+            readAt: new Date(),
+            $push: {
+              readBy: {
+                user: userId,
+                readAt: new Date()
+              }
+            }
+          }
+        );
+
+        socket.emit('messages-marked-read', { messageIds });
+      } catch (error) {
+        console.error('Error marking messages as read:', error);
       }
     });
 
@@ -90,7 +150,6 @@ module.exports = (io) => {
     socket.on('disconnect', async () => {
       console.log('❌ Client disconnected:', socket.id);
 
-      // Find and remove user from online users
       let disconnectedUserId = null;
       for (const [userId, socketId] of onlineUsers.entries()) {
         if (socketId === socket.id) {
@@ -102,14 +161,12 @@ module.exports = (io) => {
 
       if (disconnectedUserId) {
         try {
-          // Update user's online status
           await User.findByIdAndUpdate(disconnectedUserId, {
             isOnline: false,
             socketId: null,
             lastSeen: new Date()
           });
 
-          // Broadcast to all clients that user is offline
           io.emit('user-status-change', {
             userId: disconnectedUserId,
             isOnline: false

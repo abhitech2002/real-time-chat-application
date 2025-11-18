@@ -9,7 +9,12 @@ const MessageSchema = new mongoose.Schema({
   receiver: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    default: null
+  },
+  room: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Room',
+    default: null
   },
   content: {
     type: String,
@@ -25,10 +30,28 @@ const MessageSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  fileName: {
+    type: String,
+    default: null
+  },
+  fileSize: {
+    type: Number,
+    default: null
+  },
   isRead: {
     type: Boolean,
     default: false
   },
+  readBy: [{
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    readAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   readAt: {
     type: Date,
     default: null
@@ -39,5 +62,6 @@ const MessageSchema = new mongoose.Schema({
 
 // Index for faster queries
 MessageSchema.index({ sender: 1, receiver: 1, createdAt: -1 });
+MessageSchema.index({ room: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Message', MessageSchema);

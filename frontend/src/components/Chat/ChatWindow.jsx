@@ -1,29 +1,77 @@
 import { useState, useEffect, useRef } from 'react';
-import { messagesAPI } from '../../utils/api';
+import { messagesAPI, roomsAPI } from '../../utils/api';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import { toast } from 'react-toastify';
 import './Chat.css';
 
-const ChatWindow = ({ selectedUser, currentUser, socket }) => {
+const ChatWindow = ({ selectedUser, selectedRoom, currentUser, socket }) => {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // FIXED: start as false so we don't auto-scroll on first load
+  const [isAtBottom, setIsAtBottom] = useState(false);
+
   const [isTyping, setIsTyping] = useState(false);
+
+  const messagesContainerRef = useRef(null);
   const messagesEndRef = useRef(null);
 
-  // Scroll to bottom of messages
+  // Prevent auto-scroll on initial load
+  const firstLoad = useRef(true);
+
+  const isRoom = !!selectedRoom;
+  const chatTarget = selectedRoom || selectedUser;
+
+  if (!chatTarget) {
+    return (
+      <div className="chat-window">
+        <div className="no-chat-selected">
+          <div className="empty-state">
+            <h2>💬 Welcome to Chat App!</h2>
+            <p>Select a user or group to start chatting</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Fetch message history
+  const checkIfAtBottom = () => {
+    if (!messagesContainerRef.current) return true;
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+    return scrollHeight - scrollTop <= clientHeight + 10;
+  };
+
+  const handleScroll = () => {
+    setIsAtBottom(checkIfAtBottom());
+  };
+
+  useEffect(() => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.addEventListener('scroll', handleScroll);
+    }
+    return () => {
+      if (messagesContainerRef.current) {
+        messagesContainerRef.current.removeEventListener('scroll', handleScroll);
+      }
+    };
+  }, []);
+
+  // Fetch messages
   useEffect(() => {
     const fetchMessages = async () => {
-      if (!selectedUser) return;
-      
+      if (!chatTarget) return;
+
       setLoading(true);
       try {
-        const response = await messagesAPI.getMessages(selectedUser._id);
+        const response = isRoom
+          ? await roomsAPI.getRoomMessages(chatTarget._id)
+          : await messagesAPI.getMessages(chatTarget._id);
+
         setMessages(response.data.data);
       } catch (error) {
         console.error('Error fetching messages:', error);
@@ -34,54 +82,73 @@ const ChatWindow = ({ selectedUser, currentUser, socket }) => {
     };
 
     fetchMessages();
-  }, [selectedUser]);
+  }, [chatTarget, isRoom]);
+
+  // After messages load, detect real scroll position (DO NOT scroll)
+  useEffect(() => {
+    if (!loading) {
+      setTimeout(() => {
+        setIsAtBottom(checkIfAtBottom());
+      }, 50);
+    }
+  }, [loading]);
+
+  // Auto-scroll only after first load
+  useEffect(() => {
+    if (firstLoad.current) {
+      firstLoad.current = false;
+      return; // skip auto-scroll on initial load
+    }
+
+    if (isAtBottom) {
+      scrollToBottom();
+    }
+  }, [messages, isAtBottom]);
 
   // Socket listeners
   useEffect(() => {
     if (!socket) return;
 
-    // Listen for incoming messages
     socket.on('receive-message', (message) => {
-      // Only add message if it's from the selected user
-      if (message.sender._id === selectedUser._id) {
-        setMessages(prev => {
-          // Check if message already exists
-          const exists = prev.find(m => m._id === message._id);
+      const isRelevant = isRoom
+        ? message.room === chatTarget._id
+        : message.sender._id === chatTarget._id;
+
+      if (isRelevant) {
+        setMessages((prev) => {
+          const exists = prev.find((m) => m._id === message._id);
           if (exists) return prev;
+
+          requestAnimationFrame(() => {
+            if (checkIfAtBottom()) scrollToBottom();
+          });
+
           return [...prev, message];
         });
-        scrollToBottom();
       }
     });
 
-    // Listen for message sent confirmation
     socket.on('message-sent', (message) => {
-      // Add the confirmed message
-      setMessages(prev => {
-        // Check if message already exists to prevent duplicates
-        const exists = prev.find(m => m._id === message._id);
+      setMessages((prev) => {
+        const exists = prev.find((m) => m._id === message._id);
         if (exists) return prev;
         return [...prev, message];
       });
       scrollToBottom();
     });
 
-    // Listen for typing indicators
     socket.on('user-typing', (data) => {
-      if (data.userId === selectedUser._id) {
-        setIsTyping(true);
-      }
+      const relevant = isRoom
+        ? data.roomId === chatTarget._id
+        : data.userId === chatTarget._id;
+      if (relevant) setIsTyping(true);
     });
 
     socket.on('user-stopped-typing', (data) => {
-      if (data.userId === selectedUser._id) {
-        setIsTyping(false);
-      }
-    });
-
-    // Handle errors
-    socket.on('message-error', (error) => {
-      toast.error(error.message || 'Failed to send message');
+      const relevant = isRoom
+        ? data.roomId === chatTarget._id
+        : data.userId === chatTarget._id;
+      if (relevant) setIsTyping(false);
     });
 
     return () => {
@@ -89,63 +156,77 @@ const ChatWindow = ({ selectedUser, currentUser, socket }) => {
       socket.off('message-sent');
       socket.off('user-typing');
       socket.off('user-stopped-typing');
-      socket.off('message-error');
     };
-  }, [socket, selectedUser]);
-
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  }, [socket, chatTarget, isRoom]);
 
   const handleSendMessage = (content) => {
     if (!content.trim() || !socket) return;
 
     const messageData = {
       senderId: currentUser._id,
-      receiverId: selectedUser._id,
       content: content.trim(),
-      messageType: 'text'
+      messageType: 'text',
     };
 
-    // Just emit the message - no optimistic update
-    // We'll add it when we get 'message-sent' event
+    if (isRoom) {
+      messageData.roomId = chatTarget._id;
+    } else {
+      messageData.receiverId = chatTarget._id;
+    }
+
+    socket.emit('send-message', messageData);
+  };
+
+  const handleFileMessage = (fileData) => {
+    if (!socket) return;
+
+    const messageData = {
+      senderId: currentUser._id,
+      content: fileData.name,
+      messageType: fileData.type,
+      fileUrl: fileData.url,
+      fileName: fileData.name,
+      fileSize: fileData.size,
+    };
+
+    if (isRoom) messageData.roomId = chatTarget._id;
+    else messageData.receiverId = chatTarget._id;
+
+    // ensure correct scroll behavior for file messages
+    setIsAtBottom(true);
     socket.emit('send-message', messageData);
   };
 
   const handleTyping = (isTyping) => {
     if (!socket) return;
 
-    if (isTyping) {
-      socket.emit('typing-start', {
-        senderId: currentUser._id,
-        receiverId: selectedUser._id
-      });
-    } else {
-      socket.emit('typing-stop', {
-        senderId: currentUser._id,
-        receiverId: selectedUser._id
-      });
-    }
+    const data = { senderId: currentUser._id };
+    if (isRoom) data.roomId = chatTarget._id;
+    else data.receiverId = chatTarget._id;
+
+    socket.emit(isTyping ? 'typing-start' : 'typing-stop', data);
   };
 
   return (
     <div className="chat-window">
-      {/* Chat Header */}
       <div className="chat-header">
         <div className="chat-user-info">
-          <img src={selectedUser.avatar} alt={selectedUser.username} />
+          <img 
+            src={chatTarget.avatar || 'https://via.placeholder.com/150'} 
+            alt={chatTarget.name || chatTarget.username || 'User'} 
+          />
           <div>
-            <h3>{selectedUser.username}</h3>
-            <span className={selectedUser.isOnline ? 'status-online' : 'status-offline'}>
-              {selectedUser.isOnline ? 'Online' : 'Offline'}
+            <h3>{chatTarget.name || chatTarget.username}</h3>
+            <span className={!isRoom && chatTarget.isOnline ? 'status-online' : 'status-offline'}>
+              {isRoom
+                ? `${chatTarget.members?.length || 0} members`
+                : chatTarget.isOnline ? 'Online' : 'Offline'}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Messages Area */}
-      <div className="messages-container">
+      <div className="messages-container" ref={messagesContainerRef}>
         {loading ? (
           <div className="loading-messages">Loading messages...</div>
         ) : messages.length === 0 ? (
@@ -153,28 +234,36 @@ const ChatWindow = ({ selectedUser, currentUser, socket }) => {
             <p>No messages yet. Start the conversation! 👋</p>
           </div>
         ) : (
-          <MessageList 
-            messages={messages}
-            currentUserId={currentUser._id}
-          />
+          <MessageList messages={messages} currentUserId={currentUser._id} />
         )}
-        
+
         {isTyping && (
           <div className="typing-indicator">
-            <span>{selectedUser.username} is typing</span>
-            <span className="dots">
-              <span>.</span><span>.</span><span>.</span>
-            </span>
+            <span>{isRoom ? 'Someone' : chatTarget.username} is typing</span>
+            <span className="dots"><span>.</span><span>.</span><span>.</span></span>
           </div>
         )}
-        
+
         <div ref={messagesEndRef} />
+
+        {!isAtBottom && (
+          <button
+            className="scroll-to-bottom-btn"
+            onClick={() => {
+              setIsAtBottom(true);
+              scrollToBottom();
+            }}
+            title="Scroll to bottom"
+          >
+            ↓
+          </button>
+        )}
       </div>
 
-      {/* Message Input */}
       <MessageInput 
         onSendMessage={handleSendMessage}
         onTyping={handleTyping}
+        onFileMessage={handleFileMessage}
       />
     </div>
   );

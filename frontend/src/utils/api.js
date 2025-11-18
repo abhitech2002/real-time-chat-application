@@ -43,4 +43,23 @@ export const messagesAPI = {
   sendMessage: (messageData) => api.post('/messages', messageData)
 };
 
+// Rooms API calls
+export const roomsAPI = {
+  createRoom: (roomData) => api.post('/rooms', roomData),
+  getRooms: () => api.get('/rooms'),
+  getRoomById: (roomId) => api.get(`/rooms/${roomId}`),
+  getRoomMessages: (roomId) => api.get(`/rooms/${roomId}/messages`),
+  addMember: (roomId, userId) => api.post(`/rooms/${roomId}/members`, { userId }),
+  leaveRoom: (roomId) => api.delete(`/rooms/${roomId}/leave`)
+};
+
+// Upload API calls
+export const uploadAPI = {
+  uploadFile: (formData) => api.post('/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  })
+};
+
 export default api;

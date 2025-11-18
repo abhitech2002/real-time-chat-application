@@ -1,9 +1,10 @@
 import { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../../context/AuthContext';
 import { SocketContext } from '../../context/SocketContext';
-import { usersAPI } from '../../utils/api';
+import { usersAPI, roomsAPI } from '../../utils/api';
 import UserList from './UserList';
 import ChatWindow from './ChatWindow';
+import CreateRoomModal from './CreateRoomModal';
 import './Chat.css';
 
 const ChatPage = () => {
@@ -11,23 +12,39 @@ const ChatPage = () => {
   const { socket, onlineUsers } = useContext(SocketContext);
   
   const [users, setUsers] = useState([]);
+  const [rooms, setRooms] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedRoom, setSelectedRoom] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('users'); // 'users' or 'rooms'
+  const [showCreateRoom, setShowCreateRoom] = useState(false);
 
-  // Fetch all users
+  // Fetch users and rooms
   useEffect(() => {
-    const fetchUsers = async () => {
+    const fetchData = async () => {
       try {
-        const response = await usersAPI.getAllUsers();
-        setUsers(response.data.data);
+        // Debug: Check token
+        const token = localStorage.getItem('token');
+        console.log('Token exists:', !!token);
+        
+        console.log('Fetching users and rooms...');
+        const [usersResponse, roomsResponse] = await Promise.all([
+          usersAPI.getAllUsers(),
+          roomsAPI.getRooms()
+        ]);
+        console.log('Users response:', usersResponse.data);
+        console.log('Rooms response:', roomsResponse.data);
+        setUsers(usersResponse.data.data);
+        setRooms(roomsResponse.data.data);
       } catch (error) {
-        console.error('Error fetching users:', error);
+        console.error('Error fetching data:', error);
+        console.error('Error details:', error.response?.data);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchUsers();
+    fetchData();
   }, []);
 
   // Update users' online status
@@ -42,6 +59,26 @@ const ChatPage = () => {
 
   const handleSelectUser = (user) => {
     setSelectedUser(user);
+    setSelectedRoom(null);
+  };
+
+  const handleSelectRoom = (room) => {
+    console.log('Selecting room:', room);
+    setSelectedRoom(room);
+    setSelectedUser(null);
+    
+    // Join room via socket
+    if (socket && room._id) {
+      console.log('Joining room via socket:', room._id);
+      socket.emit('join-room', room._id);
+    }
+  };
+
+  const handleRoomCreated = (newRoom) => {
+    console.log('Room created:', newRoom);
+    setRooms(prev => [newRoom, ...prev]);
+    setActiveTab('rooms'); // Switch to rooms tab
+    handleSelectRoom(newRoom);
   };
 
   if (loading) {
@@ -65,26 +102,88 @@ const ChatPage = () => {
           </button>
         </div>
 
-        <div className="search-container">
-          <input 
-            type="text" 
-            placeholder="Search users..." 
-            className="search-input"
-          />
+        {/* Tabs */}
+        <div className="tabs">
+          <button
+            className={`tab ${activeTab === 'users' ? 'active' : ''}`}
+            onClick={() => setActiveTab('users')}
+          >
+            💬 Chats
+          </button>
+          <button
+            className={`tab ${activeTab === 'rooms' ? 'active' : ''}`}
+            onClick={() => setActiveTab('rooms')}
+          >
+            👥 Groups
+          </button>
         </div>
 
-        <UserList 
-          users={users}
-          selectedUser={selectedUser}
-          onSelectUser={handleSelectUser}
-        />
+        {activeTab === 'users' ? (
+          <>
+            <div className="search-container">
+              <input 
+                type="text" 
+                placeholder="Search users..." 
+                className="search-input"
+              />
+            </div>
+            <UserList 
+              users={users}
+              selectedUser={selectedUser}
+              onSelectUser={handleSelectUser}
+            />
+            
+            {/* Debug info - remove later */}
+            <div style={{ padding: '20px', fontSize: '12px', color: '#666' }}>
+              <p>Total users: {users.length}</p>
+              <p>Rooms: {rooms.length}</p>
+            </div>
+          </>
+        ) : (
+          <>
+            <button 
+              className="create-room-btn"
+              onClick={() => setShowCreateRoom(true)}
+            >
+              + Create Group
+            </button>
+            <div className="user-list">
+              {rooms.length === 0 ? (
+                <div className="no-users">
+                  <p>No groups yet. Create one!</p>
+                </div>
+              ) : (
+                rooms.map(room => (
+                  <div
+                    key={room._id}
+                    className={`user-item ${selectedRoom?._id === room._id ? 'active' : ''}`}
+                    onClick={() => handleSelectRoom(room)}
+                  >
+                    <img 
+                      src={room.avatar || 'https://via.placeholder.com/150?text=Group'} 
+                      alt={room.name || 'Group'} 
+                      className="user-avatar" 
+                    />
+                    <div className="user-details">
+                      <h4>{room.name || 'Unnamed Group'}</h4>
+                      <p className="user-status">
+                        {room.members?.length || 0} members
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Chat Area */}
       <div className="chat-main">
-        {selectedUser ? (
+        {selectedUser || selectedRoom ? (
           <ChatWindow 
             selectedUser={selectedUser}
+            selectedRoom={selectedRoom}
             currentUser={user}
             socket={socket}
           />
@@ -92,11 +191,20 @@ const ChatPage = () => {
           <div className="no-chat-selected">
             <div className="empty-state">
               <h2>💬 Welcome to Chat App!</h2>
-              <p>Select a user from the sidebar to start chatting</p>
+              <p>Select a user or group to start chatting</p>
             </div>
           </div>
         )}
       </div>
+
+      {/* Create Room Modal */}
+      {showCreateRoom && (
+        <CreateRoomModal
+          users={users}
+          onClose={() => setShowCreateRoom(false)}
+          onRoomCreated={handleRoomCreated}
+        />
+      )}
     </div>
   );
 };

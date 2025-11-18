@@ -1,6 +1,7 @@
+import { memo } from 'react';
 import './Chat.css';
 
-const MessageList = ({ messages, currentUserId }) => {
+const MessageList = memo(({ messages, currentUserId }) => {
   const formatTime = (timestamp) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString('en-US', { 
@@ -79,7 +80,28 @@ const MessageList = ({ messages, currentUserId }) => {
                     <span className="message-sender">{message.sender.username}</span>
                   )}
                   <div className="message-bubble">
-                    <p>{message.content}</p>
+                    {message.messageType === 'image' ? (
+                      <div className="message-image">
+                        <img src={message.fileUrl} alt="Shared image" />
+                        {message.content && <p>{message.content}</p>}
+                      </div>
+                    ) : message.messageType === 'file' ? (
+                      <div className="message-file">
+                        <div className="file-icon">📎</div>
+                        <div className="file-info">
+                          <a href={message.fileUrl} target="_blank" rel="noopener noreferrer">
+                            {message.fileName || 'Download File'}
+                          </a>
+                          {message.fileSize && (
+                            <span className="file-size">
+                              {(message.fileSize / 1024).toFixed(2)} KB
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <p>{message.content}</p>
+                    )}
                   </div>
                   <span className="message-time">{formatTime(message.createdAt)}</span>
                 </div>
@@ -90,6 +112,6 @@ const MessageList = ({ messages, currentUserId }) => {
       ))}
     </div>
   );
-};
+});
 
 export default MessageList;

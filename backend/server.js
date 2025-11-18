@@ -9,6 +9,8 @@ const socketIo = require('socket.io');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const messageRoutes = require('./routes/messages');
+const roomRoutes = require('./routes/rooms');
+const uploadRoutes = require('./routes/upload');
 
 // Import socket handler
 const socketHandler = require('./socket/socketHandler');
@@ -46,6 +48,8 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/messages', messageRoutes);
+app.use('/api/rooms', roomRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Socket.io Handler
 socketHandler(io);
@@ -57,3 +61,5 @@ server.listen(PORT, () => {
 });
 
 module.exports = { io };
+
+console.log('Cloudinary API key present?', !!process.env.CLOUDINARY_API_KEY);

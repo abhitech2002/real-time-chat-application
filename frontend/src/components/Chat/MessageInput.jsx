@@ -1,14 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
+import FileUpload from './FileUpload';
+import EmojiPickerComponent from './EmojiPicker';
 import './Chat.css';
 
-const MessageInput = ({ onSendMessage, onTyping }) => {
+const MessageInput = ({ onSendMessage, onTyping, onFileMessage }) => {
   const [message, setMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const typingTimeoutRef = useRef(null);
   const inputRef = useRef(null);
 
   useEffect(() => {
-    // Focus input on mount
     inputRef.current?.focus();
   }, []);
 
@@ -16,18 +17,15 @@ const MessageInput = ({ onSendMessage, onTyping }) => {
     const value = e.target.value;
     setMessage(value);
 
-    // Emit typing indicator
     if (value.trim() && !isTyping) {
       setIsTyping(true);
       onTyping(true);
     }
 
-    // Clear previous timeout
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
 
-    // Set timeout to stop typing indicator
     typingTimeoutRef.current = setTimeout(() => {
       setIsTyping(false);
       onTyping(false);
@@ -41,13 +39,11 @@ const MessageInput = ({ onSendMessage, onTyping }) => {
       onSendMessage(message);
       setMessage('');
       
-      // Stop typing indicator
       if (isTyping) {
         setIsTyping(false);
         onTyping(false);
       }
       
-      // Clear timeout
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
@@ -61,9 +57,25 @@ const MessageInput = ({ onSendMessage, onTyping }) => {
     }
   };
 
+  const handleEmojiClick = (emoji) => {
+    const newMessage = message + emoji;
+    setMessage(newMessage);
+    inputRef.current?.focus();
+  };
+
+  const handleFileUploaded = (fileData) => {
+    if (onFileMessage) {
+      onFileMessage(fileData);
+    }
+  };
+
   return (
     <form className="message-input-container" onSubmit={handleSubmit}>
       <div className="message-input-wrapper">
+        <FileUpload onFileUploaded={handleFileUploaded} />
+        
+        <EmojiPickerComponent onEmojiClick={handleEmojiClick} />
+        
         <input
           ref={inputRef}
           type="text"

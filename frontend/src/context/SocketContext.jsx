@@ -23,6 +23,9 @@ export const SocketProvider = ({ children }) => {
 
       setSocket(newSocket);
 
+      // Initialize with current user (they're online when they connect)
+      setOnlineUsers([user._id]);
+
       // Emit user online event
       newSocket.emit('user-online', user._id);
 
@@ -38,11 +41,11 @@ export const SocketProvider = ({ children }) => {
         });
       });
 
-      // Receive initial list of online users
+      // Receive initial list of online users from server
       newSocket.on('online-users', (list) => {
         if (Array.isArray(list)) {
-          // Ensure unique values
-          const unique = Array.from(new Set(list));
+          // Merge with current user to ensure they're included
+          const unique = Array.from(new Set([user._id, ...list]));
           setOnlineUsers(unique);
         }
       });

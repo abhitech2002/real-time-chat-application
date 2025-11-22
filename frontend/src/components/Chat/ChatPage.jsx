@@ -38,7 +38,12 @@ const ChatPage = () => {
         ]);
         console.log('Users response:', usersResponse.data);
         console.log('Rooms response:', roomsResponse.data);
-        setUsers(usersResponse.data.data);
+        // Clear isOnline from database - we'll set it based on socket onlineUsers
+        const usersWithoutStatus = usersResponse.data.data.map(u => ({
+          ...u,
+          isOnline: false // Will be updated by onlineUsers effect
+        }));
+        setUsers(usersWithoutStatus);
         setRooms(roomsResponse.data.data);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -51,14 +56,17 @@ const ChatPage = () => {
     fetchData();
   }, []);
 
-  // Update users' online status
+  // Update users' online status based on socket onlineUsers (not database isOnline)
   useEffect(() => {
-    setUsers(prevUsers => 
-      prevUsers.map(u => ({
-        ...u,
-        isOnline: onlineUsers.includes(u._id)
-      }))
-    );
+    if (onlineUsers.length > 0 || users.length > 0) {
+      setUsers(prevUsers => 
+        prevUsers.map(u => ({
+          ...u,
+          // Only use socket's onlineUsers list, ignore database isOnline field
+          isOnline: onlineUsers.includes(u._id)
+        }))
+      );
+    }
   }, [onlineUsers]);
 
   const handleSelectUser = (user) => {

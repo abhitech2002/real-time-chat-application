@@ -19,6 +19,9 @@ module.exports = (io) => {
           return;
         }
 
+        // Check if user is already online (reconnection scenario)
+        const wasAlreadyOnline = onlineUsers.has(userId);
+        
         await User.findByIdAndUpdate(userId, {
           isOnline: true,
           socketId: socket.id,
@@ -27,10 +30,17 @@ module.exports = (io) => {
 
         onlineUsers.set(userId, socket.id);
 
-        io.emit('user-status-change', {
-          userId,
-          isOnline: true
-        });
+        // Send current list of online users to the newly connected user
+        const onlineUserIds = Array.from(onlineUsers.keys());
+        socket.emit('online-users', onlineUserIds);
+
+        // Only broadcast status change if user wasn't already online
+        if (!wasAlreadyOnline) {
+          io.emit('user-status-change', {
+            userId,
+            isOnline: true
+          });
+        }
 
         console.log(`User ${user.username} (${userId}) is now online`);
       } catch (error) {

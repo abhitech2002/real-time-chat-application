@@ -15,6 +15,7 @@ const ChatWindow = ({ selectedUser, selectedRoom, currentUser, socket, onRoomDel
   const [showSearch, setShowSearch] = useState(false);
   const [showRoomSettings, setShowRoomSettings] = useState(false);
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
 
   const isRoom = !!selectedRoom;
   const chatTarget = selectedRoom || selectedUser;
@@ -33,9 +34,28 @@ const ChatWindow = ({ selectedUser, selectedRoom, currentUser, socket, onRoomDel
     );
   }
 
-  // Simple scroll to bottom - only called explicitly
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Check if user is near bottom of scroll
+  const isNearBottom = () => {
+    if (!messagesContainerRef.current) return true;
+    const container = messagesContainerRef.current;
+    const threshold = 100; // pixels from bottom
+    return container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+  };
+
+  // Scroll to bottom - only if user is near bottom or explicitly requested
+  const scrollToBottom = (force = false) => {
+    if (!messagesContainerRef.current) return;
+    
+    if (force || isNearBottom()) {
+      // Use setTimeout to ensure DOM is updated
+      setTimeout(() => {
+        const container = messagesContainerRef.current;
+        if (container) {
+          // Use direct scrollTop manipulation for better control
+          container.scrollTop = container.scrollHeight;
+        }
+      }, 50);
+    }
   };
 
   // Fetch message history
@@ -64,8 +84,8 @@ const ChatWindow = ({ selectedUser, selectedRoom, currentUser, socket, onRoomDel
           }
         }
         
-        // Scroll to bottom only on initial load
-        setTimeout(() => scrollToBottom(), 100);
+        // Scroll to bottom only on initial load - use longer delay to ensure DOM is ready
+        setTimeout(() => scrollToBottom(true), 200);
       } catch (error) {
         console.error('Error fetching messages:', error);
         toast.error('Failed to load messages');
@@ -93,6 +113,8 @@ const ChatWindow = ({ selectedUser, selectedRoom, currentUser, socket, onRoomDel
           if (exists) return prev;
           return [...prev, message];
         });
+        // Auto-scroll to bottom when receiving new messages (if near bottom)
+        setTimeout(() => scrollToBottom(), 150);
       }
     });
 
@@ -103,7 +125,7 @@ const ChatWindow = ({ selectedUser, selectedRoom, currentUser, socket, onRoomDel
         if (exists) return prev;
         
         // Scroll to bottom when YOU send a message
-        setTimeout(() => scrollToBottom(), 100);
+        setTimeout(() => scrollToBottom(true), 150);
         
         return [...prev, message];
       });
@@ -254,7 +276,7 @@ const ChatWindow = ({ selectedUser, selectedRoom, currentUser, socket, onRoomDel
       </div>
 
       {/* Messages Area - Simple scrollable container */}
-      <div className="messages-container">
+      <div className="messages-container" ref={messagesContainerRef}>
         {loading ? (
           <LoadingSpinner message="Loading messages..." />
         ) : messages.length === 0 ? (

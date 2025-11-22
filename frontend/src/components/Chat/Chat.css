@@ -215,6 +215,8 @@
   display: flex;
   flex-direction: column;
   background: #f9fafb;
+  min-height: 0; /* Critical for flex scrolling */
+  overflow: hidden; /* Prevent overflow */
 }
 
 .no-chat-selected {
@@ -240,6 +242,8 @@
   display: flex;
   flex-direction: column;
   background: white;
+  min-height: 0; /* Critical for flex scrolling */
+  overflow: hidden; /* Prevent overflow */
 }
 
 .chat-header {
@@ -299,12 +303,14 @@
 /* Messages Container */
 .messages-container {
   flex: 1;
-  overflow-y: scroll; /* Always show scrollbar */
+  overflow-y: auto;
   overflow-x: hidden;
   padding: 20px;
   background: #f9fafb;
   position: relative;
-  height: 100%;
+  min-height: 0; /* Critical for flex scrolling */
+  max-height: 100%; /* Ensure it doesn't exceed parent */
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 }
 
 .loading-messages,

@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import ReadReceipt from './ReadReceipt';
 import './Chat.css';
 
 const MessageList = memo(({ messages, currentUserId }) => {
@@ -63,7 +64,7 @@ const MessageList = memo(({ messages, currentUserId }) => {
 
             return (
               <div
-                key={message._id}
+                key={message._id || `${message.sender._id}-${index}`}
                 className={`message ${isOwn ? 'message-own' : 'message-other'}`}
               >
                 {!isOwn && showAvatar && (
@@ -103,7 +104,10 @@ const MessageList = memo(({ messages, currentUserId }) => {
                       <p>{message.content}</p>
                     )}
                   </div>
-                  <span className="message-time">{formatTime(message.createdAt)}</span>
+                  <div className="message-meta">
+                    <span className="message-time">{formatTime(message.createdAt)}</span>
+                    <ReadReceipt message={message} isOwn={isOwn} />
+                  </div>
                 </div>
               </div>
             );
@@ -113,5 +117,7 @@ const MessageList = memo(({ messages, currentUserId }) => {
     </div>
   );
 });
+
+MessageList.displayName = 'MessageList';
 
 export default MessageList;

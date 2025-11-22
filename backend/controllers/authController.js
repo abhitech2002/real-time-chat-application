@@ -8,7 +8,6 @@ const generateToken = (id) => {
   });
 };
 
-
 // @desc    Register new user
 // @route   POST /api/auth/register
 // @access  Public
@@ -30,7 +29,8 @@ exports.register = async (req, res) => {
     const user = await User.create({
       username,
       email,
-      password
+      password,
+      isOnline: false // Explicitly set to false on registration
     });
 
     // Generate token

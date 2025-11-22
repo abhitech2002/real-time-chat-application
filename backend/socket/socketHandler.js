@@ -12,6 +12,13 @@ module.exports = (io) => {
     // User joins
     socket.on('user-online', async (userId) => {
       try {
+        // First check if user exists
+        const user = await User.findById(userId);
+        if (!user) {
+          console.error('User not found:', userId);
+          return;
+        }
+
         await User.findByIdAndUpdate(userId, {
           isOnline: true,
           socketId: socket.id,
@@ -25,7 +32,7 @@ module.exports = (io) => {
           isOnline: true
         });
 
-        console.log(`User ${userId} is now online`);
+        console.log(`User ${user.username} (${userId}) is now online`);
       } catch (error) {
         console.error('Error updating user status:', error);
       }

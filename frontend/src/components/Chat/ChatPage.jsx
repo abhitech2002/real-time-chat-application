@@ -5,6 +5,8 @@ import { usersAPI, roomsAPI } from '../../utils/api';
 import UserList from './UserList';
 import ChatWindow from './ChatWindow';
 import CreateRoomModal from './CreateRoomModal';
+import UserProfile from './UserProfile';
+import LoadingSpinner from '../Common/LoadingSpinner';
 import './Chat.css';
 
 const ChatPage = () => {
@@ -18,6 +20,8 @@ const ChatPage = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('users'); // 'users' or 'rooms'
   const [showCreateRoom, setShowCreateRoom] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   // Fetch users and rooms
   useEffect(() => {
@@ -81,8 +85,21 @@ const ChatPage = () => {
     handleSelectRoom(newRoom);
   };
 
+  // Filter users and rooms based on search
+  const filteredUsers = users.filter(user =>
+    user.username.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const filteredRooms = rooms.filter(room =>
+    room.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   if (loading) {
-    return <div className="loading">Loading chat...</div>;
+    return (
+      <div className="loading-page">
+        <LoadingSpinner size="large" message="Loading chat..." />
+      </div>
+    );
   }
 
   return (
@@ -90,7 +107,11 @@ const ChatPage = () => {
       {/* Sidebar */}
       <div className="chat-sidebar">
         <div className="sidebar-header">
-          <div className="user-profile">
+          <div 
+            className="user-profile"
+            onClick={() => setShowProfile(true)}
+            style={{ cursor: 'pointer' }}
+          >
             <img src={user.avatar} alt={user.username} />
             <div className="user-info">
               <h3>{user.username}</h3>
@@ -125,10 +146,12 @@ const ChatPage = () => {
                 type="text" 
                 placeholder="Search users..." 
                 className="search-input"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
             <UserList 
-              users={users}
+              users={filteredUsers}
               selectedUser={selectedUser}
               onSelectUser={handleSelectUser}
             />
@@ -147,8 +170,17 @@ const ChatPage = () => {
             >
               + Create Group
             </button>
+            <div className="search-container">
+              <input 
+                type="text" 
+                placeholder="Search groups..." 
+                className="search-input"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
             <div className="user-list">
-              {rooms.length === 0 ? (
+              {filteredRooms.length === 0 ? (
                 <div className="no-users">
                   <p>No groups yet. Create one!</p>
                 </div>
@@ -204,6 +236,11 @@ const ChatPage = () => {
           onClose={() => setShowCreateRoom(false)}
           onRoomCreated={handleRoomCreated}
         />
+      )}
+
+      {/* User Profile Modal */}
+      {showProfile && (
+        <UserProfile onClose={() => setShowProfile(false)} />
       )}
     </div>
   );

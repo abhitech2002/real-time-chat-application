@@ -50,7 +50,9 @@ export const roomsAPI = {
   getRoomById: (roomId) => api.get(`/rooms/${roomId}`),
   getRoomMessages: (roomId) => api.get(`/rooms/${roomId}/messages`),
   addMember: (roomId, userId) => api.post(`/rooms/${roomId}/members`, { userId }),
-  leaveRoom: (roomId) => api.delete(`/rooms/${roomId}/leave`)
+  leaveRoom: (roomId) => api.delete(`/rooms/${roomId}/leave`),
+  removeMember: (roomId, userId) => api.delete(`/rooms/${roomId}/members/${userId}`),
+  deleteRoom: (roomId) => api.delete(`/rooms/${roomId}`)
 };
 
 // Upload API calls

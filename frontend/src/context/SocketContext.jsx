@@ -30,6 +30,7 @@ export const SocketProvider = ({ children }) => {
       newSocket.on('user-status-change', ({ userId, isOnline }) => {
         setOnlineUsers((prev) => {
           if (isOnline) {
+            if (prev.includes(userId)) return prev;
             return [...prev, userId];
           } else {
             return prev.filter((id) => id !== userId);
@@ -37,8 +38,19 @@ export const SocketProvider = ({ children }) => {
         });
       });
 
+      // Receive initial list of online users
+      newSocket.on('online-users', (list) => {
+        if (Array.isArray(list)) {
+          // Ensure unique values
+          const unique = Array.from(new Set(list));
+          setOnlineUsers(unique);
+        }
+      });
+
       // Cleanup on unmount
       return () => {
+        newSocket.off('user-status-change');
+        newSocket.off('online-users');
         newSocket.close();
       };
     } else {

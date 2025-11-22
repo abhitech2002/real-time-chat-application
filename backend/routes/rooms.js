@@ -7,7 +7,9 @@ const {
   getRoomById,
   getRoomMessages,
   addMember,
-  leaveRoom
+  leaveRoom,
+  removeMember,
+  deleteRoom
 } = require('../controllers/roomController');
 
 // Room routes
@@ -17,5 +19,7 @@ router.get('/:id', protect, getRoomById);
 router.get('/:id/messages', protect, getRoomMessages);
 router.post('/:id/members', protect, addMember);
 router.delete('/:id/leave', protect, leaveRoom);
+router.delete('/:id/members/:userId', protect, removeMember);
+router.delete('/:id', protect, deleteRoom);
 
 module.exports = router;

@@ -27,17 +27,10 @@ const ChatPage = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Debug: Check token
-        const token = localStorage.getItem('token');
-        console.log('Token exists:', !!token);
-        
-        console.log('Fetching users and rooms...');
         const [usersResponse, roomsResponse] = await Promise.all([
           usersAPI.getAllUsers(),
           roomsAPI.getRooms()
         ]);
-        console.log('Users response:', usersResponse.data);
-        console.log('Rooms response:', roomsResponse.data);
         // Clear isOnline from database - we'll set it based on socket onlineUsers
         const usersWithoutStatus = usersResponse.data.data.map(u => ({
           ...u,
@@ -75,19 +68,16 @@ const ChatPage = () => {
   };
 
   const handleSelectRoom = (room) => {
-    console.log('Selecting room:', room);
     setSelectedRoom(room);
     setSelectedUser(null);
     
     // Join room via socket
     if (socket && room._id) {
-      console.log('Joining room via socket:', room._id);
       socket.emit('join-room', room._id);
     }
   };
 
   const handleRoomCreated = (newRoom) => {
-    console.log('Room created:', newRoom);
     setRooms(prev => [newRoom, ...prev]);
     setActiveTab('rooms'); // Switch to rooms tab
     handleSelectRoom(newRoom);
@@ -163,12 +153,6 @@ const ChatPage = () => {
               selectedUser={selectedUser}
               onSelectUser={handleSelectUser}
             />
-            
-            {/* Debug info - remove later */}
-            <div style={{ padding: '20px', fontSize: '12px', color: '#666' }}>
-              <p>Total users: {users.length}</p>
-              <p>Rooms: {rooms.length}</p>
-            </div>
           </>
         ) : (
           <>

@@ -314,7 +314,7 @@ const ChatWindow = ({ selectedUser, selectedRoom, currentUser, socket, onRoomDel
         <SearchMessages
           messages={messages}
           onResultClick={(msg) => {
-            console.log('Jump to message:', msg);
+            // TODO: Implement scroll to message functionality
           }}
           onClose={() => setShowSearch(false)}
         />
@@ -326,7 +326,7 @@ const ChatWindow = ({ selectedUser, selectedRoom, currentUser, socket, onRoomDel
           room={chatTarget}
           onClose={() => setShowRoomSettings(false)}
           onRoomUpdated={(updatedRoom) => {
-            console.log('Room updated:', updatedRoom);
+            // Room updated - refresh room data if needed
           }}
           onRoomDeleted={(roomId) => {
             setShowRoomSettings(false);
